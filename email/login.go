@@ -10,6 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 	core "github.com/shjp/shjp-core"
+	"github.com/shjp/shjp-core/model"
 )
 
 // LoginStrategy implements auth.LoginStrategy for email login
@@ -18,7 +19,7 @@ type LoginStrategy struct {
 }
 
 // Verify verifies the login for the given user
-func (s *LoginStrategy) Verify(u core.User) (*core.User, error) {
+func (s *LoginStrategy) Verify(u core.User) (*model.User, error) {
 	emailUser := core.User{
 		Email:    u.Email,
 		Password: u.Password,
@@ -45,7 +46,7 @@ func (s *LoginStrategy) Verify(u core.User) (*core.User, error) {
 		return nil, errors.Wrap(err, "Error reading the response body")
 	}
 
-	var users []core.User
+	var users []model.User
 	if err = json.Unmarshal(body, &users); err != nil {
 		return nil, errors.Wrap(err, "Error unmarshaling the response to users array")
 	}
