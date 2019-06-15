@@ -31,12 +31,16 @@ func (l *UserLogin) Login() (*UserSession, error) {
 		return nil, errors.Wrap(err, "Login strategy failed")
 	}
 
-	sessionKey := generateSessionKey()
+	if err = u.PopulatePermissions(); err != nil {
+		return nil, errors.Wrap(err, "Error populating user permissions")
+	}
+
 	userBytes, err := json.Marshal(u)
 	if err != nil {
 		return nil, errors.Wrap(err, "Error marshalling user object")
 	}
 
+	sessionKey := generateSessionKey()
 	if err = l.sessionClient.Set(sessionKey, userBytes); err != nil {
 		return nil, errors.Wrap(err, "Error setting the session key/value")
 	}
