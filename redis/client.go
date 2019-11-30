@@ -1,13 +1,16 @@
 package redis
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
+	"math/rand"
 	"time"
 
 	"github.com/gomodule/redigo/redis"
 	"github.com/pkg/errors"
 	auth "github.com/shjp/shjp-auth"
+	"github.com/shjp/shjp-core/model"
 )
 
 const subsetName = "userSessions"
@@ -42,7 +45,7 @@ func (o *Options) String() string {
 }
 
 // Get executes GET command on the redis server
-func (c *Client) Get(key string) ([]byte, error) {
+func (c *Client) Get(key string) (*model.User, error) {
 	defer func() {
 		if !c.reusable {
 			c.Close()
@@ -53,25 +56,48 @@ func (c *Client) Get(key string) ([]byte, error) {
 		return nil, errors.Wrap(err, fmt.Sprintf("Error executing GET for key: %s", key))
 	}
 
-	return val, nil
+	var user model.User
+	if err = json.Unmarshal(val, &user); err != nil {
+		return nil, errors.Wrap(err, "Error unmarshaling user from redis GET result")
+	}
+
+	return &user, nil
 }
 
-// Set executes SET command on the redis server
-func (c *Client) Set(key string, val []byte) error {
+// Set executes SET command on the redis server and returns the key
+func (c *Client) Set(user model.User) (string, error) {
 	defer func() {
 		if !c.reusable {
 			c.Close()
 		}
 	}()
 
-	if _, err := c.conn.Do("HSET", subsetName, key, val); err != nil {
-		return errors.Wrap(err, fmt.Sprintf("Error executing SET for key: %s | value: %s", key, val))
+	val, err := json.Marshal(user)
+	if err != nil {
+		return "", errors.Wrap(err, "Error marshaling user")
 	}
 
-	return nil
+	sessionKey := generateSessionKey()
+
+	if _, err := c.conn.Do("HSET", subsetName, sessionKey, val); err != nil {
+		return "", errors.Wrap(err, fmt.Sprintf("Error executing SET for key: %s | value: %s", sessionKey, val))
+	}
+
+	return sessionKey, nil
 }
 
 // Close closes the connection
 func (c *Client) Close() error {
 	return c.conn.Close()
+}
+
+const keyLength = 16
+
+func generateSessionKey() string {
+	var letterRunes = []rune("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789")
+	b := make([]rune, keyLength)
+	for i := range b {
+		b[i] = letterRunes[rand.Intn(len(letterRunes))]
+	}
+	return string(b)
 }
